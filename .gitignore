@@ -15,3 +15,5 @@ docs/
 .*
 ref/
 dependencies/
+lcov.info
+html/

@@ -6,7 +6,7 @@ import {UUPSUpgradeable} from "openzeppelin-contracts/proxy/utils/UUPSUpgradeabl
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 import {ERC1271Upgradeable} from "./lib/ERC1271Upgradeable.sol";
 
-contract SignatureValidator is OwnableUpgradeable, UUPSUpgradeable, ERC1271Upgradeable {
+contract SignatureValidator is OwnableUpgradeable, ERC1271Upgradeable, UUPSUpgradeable {
     function initialize(address _owner, address _signer) public initializer {
         __Ownable_init(_owner);
         __ERC1271_init_unchained(_signer);
@@ -22,4 +22,9 @@ contract SignatureValidator is OwnableUpgradeable, UUPSUpgradeable, ERC1271Upgra
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    function _domainNameAndVersion() internal pure override returns (string memory name, string memory version) {
+        name = "AnonFun";
+        version = "1";
+    }
 }

@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {SignatureValidator} from "src/SignatureValidator.sol";
 
-import {DeterministicUpgradeableFactory} from "src/proxy/DeterministicUpgradeableFactory.sol";
+import {DeterministicUpgradeableFactory, SimpleUpgradeableProxy} from "src/proxy/DeterministicUpgradeableFactory.sol";
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 
 contract SignatureValidatorTest is Test {
@@ -20,14 +20,12 @@ contract SignatureValidatorTest is Test {
         implementation = new SignatureValidator();
         signer = makeAccount("signer");
 
-        validator = SignatureValidator(
-            factory.deployDeterministicUUPSAndUpgradeTo(
-                bytes32(0),
-                address(this),
-                address(implementation),
-                abi.encodeCall(implementation.reinitialize, (2, address(this), signer.addr))
-            )
+        SimpleUpgradeableProxy proxy = SimpleUpgradeableProxy(factory.deployDeterministicUUPS(0, address(this)));
+
+        proxy.upgradeToAndCall(
+            address(implementation), abi.encodeCall(implementation.reinitialize, (2, address(this), signer.addr))
         );
+        validator = SignatureValidator(address(proxy));
     }
 
     function testGetSigner() public view {

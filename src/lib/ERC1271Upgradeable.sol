@@ -7,6 +7,7 @@ import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgrade
 
 abstract contract ERC1271Upgradeable is ERC1271, Initializable {
     struct ERC1271UpgradeableStorage {
+        /// @notice The address of the signer
         address signer;
     }
 
@@ -35,10 +36,5 @@ abstract contract ERC1271Upgradeable is ERC1271, Initializable {
 
     function _erc1271Signer() internal view override returns (address) {
         return getStorage().signer;
-    }
-
-    function _domainNameAndVersion() internal pure override returns (string memory name, string memory version) {
-        name = "AnonFun";
-        version = "1";
     }
 }

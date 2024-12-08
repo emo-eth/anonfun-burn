@@ -5,6 +5,7 @@ libs = ['dependencies']
 solc = '0.8.28'
 bytecode_hash = "none"
 optimizer_runs = 9999999
+via_ir = true
 
 
 [dependencies]
