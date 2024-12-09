@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console2} from "forge-std/Test.sol";
 import {SignatureValidator} from "src/SignatureValidator.sol";
 
 import {
@@ -10,9 +10,9 @@ import {
 } from "src/proxy/DeterministicUpgradeableFactory.sol";
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 import {IERC1271} from "openzeppelin-contracts/interfaces/IERC1271.sol";
+import {ECDSA} from "openzeppelin-contracts/utils/cryptography/ECDSA.sol";
 
 contract SignatureValidatorTest is Test {
-    uint256 mainnetFork;
     uint256 constant FORK_BLOCK_NUMBER = 21360869;
 
     DeterministicUpgradeableFactory factory;
@@ -24,8 +24,11 @@ contract SignatureValidatorTest is Test {
 
     function setUp() public {
         // Setup mainnet fork
-        mainnetFork = vm.createSelectFork(getChain("mainnet").rpcUrl, FORK_BLOCK_NUMBER);
+        _initOnFork(getChain("mainnet").rpcUrl, FORK_BLOCK_NUMBER);
+    }
 
+    function _initOnFork(string memory rpcUrl, uint256 blockNumber) internal {
+        vm.createSelectFork(rpcUrl, blockNumber);
         // Rest of the setup
         factory = new DeterministicUpgradeableFactory();
         implementation = new SignatureValidator();
@@ -261,6 +264,21 @@ contract SignatureValidatorTest is Test {
 
         vm.expectRevert(SignatureValidator.BlockTooOld.selector);
         validator.isValidSignature(digest, abi.encode(bundle));
+    }
+
+    function testIsValidSignature_ExternalSigner() public {
+        // Fork OP Mainnet at specific block (blockNumber + 1)
+        _initOnFork(getChain("optimism").rpcUrl, 129086952);
+
+        validator.setSigner(0x3ba80D07Edd55cEee8137b82338c569d85F6d06b);
+
+        // This signature was generated externally
+        bytes memory externalSignature =
+            hex"00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000007b1b5e7d281fb7ae5a5b5fc062ba355af445a6278055a5eddb67204eb2c4e6900befe9100000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000041956fbb8d460113c5d22923b1b66cc5f6bf70a2287989e3b31c928b149e69b474062c1eb9dea344dbc28ce1d67490abd98eb4cdd8a5b96ec0e81eabd172f79f051c00000000000000000000000000000000000000000000000000000000000000";
+        bytes32 digest = 0x89e47d6a719192954a23a10733ed22fb9793fb00472b5ef2d17c46b38609a251;
+
+        bytes4 result = validator.isValidSignature(digest, externalSignature);
+        assertEq(result, IERC1271.isValidSignature.selector);
     }
 
     // Helper function to sign digests
