@@ -1,3 +1,10 @@
+# Setup
+
+```bash
+forge soldeer install # install dependencies
+forge test
+```
+
 # DeterministicUpgradeableFactory
 
 - Deploys deterministic ERC1967 UUPSUpgradeable proxies using CREATE2
