@@ -2,7 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {Test} from "forge-std/Test.sol";
-import {ERC1271Upgradeable, ERC1271} from "src/lib/ERC1271Upgradeable.sol";
+import {ERC1271Upgradeable} from "src/lib/ERC1271Upgradeable.sol";
+import {IERC1271} from "openzeppelin-contracts/interfaces/IERC1271.sol";
 import {ECDSA} from "solady/utils/ECDSA.sol";
 
 contract MockERC1271Upgradeable is ERC1271Upgradeable {
@@ -16,14 +17,24 @@ contract MockERC1271Upgradeable is ERC1271Upgradeable {
         emit SignerChanged(oldSigner, _signer);
     }
 
-    function _domainNameAndVersion() internal pure override returns (string memory name, string memory version) {
+    function _domainNameAndVersion()
+        internal
+        pure
+        override
+        returns (string memory name, string memory version)
+    {
         name = "BlockHashValidator";
         version = "1";
     }
 
-    function isValidSignature(bytes32 hash, bytes calldata signature) public view override returns (bytes4) {
+    function isValidSignature(bytes32 hash, bytes calldata signature)
+        public
+        view
+        override
+        returns (bytes4)
+    {
         if (ECDSA.recover(hash, signature) == getSigner()) {
-            return ERC1271.isValidSignature.selector;
+            return IERC1271.isValidSignature.selector;
         }
         return bytes4(0xffffffff);
     }
@@ -73,7 +84,7 @@ contract ERC1271UpgradeableTest is Test {
 
         // Verify signature
         bytes4 returnValue = erc1271.isValidSignature(structHash, signature);
-        assertEq(returnValue, ERC1271.isValidSignature.selector);
+        assertEq(returnValue, IERC1271.isValidSignature.selector);
     }
 
     function test_isValidSignature_invalidSigner() public {
@@ -128,7 +139,7 @@ contract ERC1271UpgradeableTest is Test {
         signature = abi.encodePacked(r, s, v);
 
         returnValue = erc1271.isValidSignature(structHash, signature);
-        assertEq(returnValue, ERC1271.isValidSignature.selector);
+        assertEq(returnValue, IERC1271.isValidSignature.selector);
     }
 
     function test_cannotReinitialize() public {
@@ -138,6 +149,8 @@ contract ERC1271UpgradeableTest is Test {
 
     function _getStructHash() internal pure returns (bytes32) {
         // Using EIP-712 Personal Sign format from ERC1271
-        return keccak256(abi.encode(keccak256("PersonalSign(string contents)"), keccak256(bytes(TEST_CONTENTS))));
+        return keccak256(
+            abi.encode(keccak256("PersonalSign(string contents)"), keccak256(bytes(TEST_CONTENTS)))
+        );
     }
 }

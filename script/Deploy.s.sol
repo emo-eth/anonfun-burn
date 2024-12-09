@@ -19,7 +19,8 @@ contract Deploy is Script {
     }
 
     function deployFactory() public returns (address) {
-        DeterministicUpgradeableFactory factory = new DeterministicUpgradeableFactory{salt: bytes32(0)}();
+        DeterministicUpgradeableFactory factory =
+            new DeterministicUpgradeableFactory{salt: bytes32(0)}();
         return address(factory);
     }
 }

@@ -2,23 +2,24 @@
 pragma solidity ^0.8.28;
 
 import {ECDSA} from "solady/utils/ECDSA.sol";
-import {ERC1271} from "./lib/ERC1271Upgradeable.sol";
 import {ERC1271Upgradeable} from "./lib/ERC1271Upgradeable.sol";
 import {Initializable} from "openzeppelin-contracts/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
 import {UUPSUpgradeable} from "openzeppelin-contracts/proxy/utils/UUPSUpgradeable.sol";
+import {IERC1271} from "openzeppelin-contracts/interfaces/IERC1271.sol";
 
 /**
  * @title SignatureValidator
  * @notice Contract for validating signatures against recent block hashes
  * @dev Implements ERC1271 signature validation with upgradeable proxy support
  */
-contract SignatureValidator is OwnableUpgradeable, ERC1271Upgradeable, UUPSUpgradeable {
+contract SignatureValidator is Ownable2StepUpgradeable, ERC1271Upgradeable, UUPSUpgradeable {
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant RECENT_BLOCK_HASH_TYPEHASH = keccak256("RecentBlockHash(uint256 number,bytes32 hash)");
+    bytes32 public constant RECENT_BLOCK_HASH_TYPEHASH =
+        keccak256("RecentBlockHash(uint256 number,bytes32 hash)");
 
     /*//////////////////////////////////////////////////////////////
                                  TYPES
@@ -40,10 +41,29 @@ contract SignatureValidator is OwnableUpgradeable, ERC1271Upgradeable, UUPSUpgra
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Thrown when provided block hash does not match chain state
+     */
     error InvalidBlockHash();
+
+    /**
+     * @notice Thrown when block number is more than 256 blocks old
+     */
     error BlockTooOld();
+
+    /**
+     * @notice Thrown when block number is greater than current block
+     */
     error BlockFromFuture();
+
+    /**
+     * @notice Thrown when provided hash does not match calculated digest
+     */
     error DigestMismatch();
+
+    /**
+     * @notice Thrown when recovered signer does not match stored signer
+     */
     error InvalidSigner();
 
     /*//////////////////////////////////////////////////////////////
@@ -56,44 +76,33 @@ contract SignatureValidator is OwnableUpgradeable, ERC1271Upgradeable, UUPSUpgra
      * @param _signature The encoded RecentBlockHashBundle
      * @return bytes4 The function selector if valid, or reverts if invalid
      */
-    function isValidSignature(bytes32 _hash, bytes calldata _signature) public view override returns (bytes4) {
+    function isValidSignature(bytes32 _hash, bytes calldata _signature)
+        public
+        view
+        override
+        returns (bytes4)
+    {
         // Decode the signature bundle
         RecentBlockHashBundle memory bundle = abi.decode(_signature, (RecentBlockHashBundle));
 
-        // Split the checks to give more specific errors
-        if (bundle.hash != blockhash(bundle.number)) {
-            revert InvalidBlockHash();
-        }
-        if (bundle.number > block.number) {
-            revert BlockFromFuture();
-        }
-        if (block.number - bundle.number > 256) {
-            revert BlockTooOld();
-        }
+        // Validate block hash and number
+        _validateBlockHash(bundle);
 
-        // reconstruct hash using domain separator, typehash, and bundle
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                _domainSeparator(),
-                keccak256(abi.encode(RECENT_BLOCK_HASH_TYPEHASH, bundle.number, bundle.hash))
-            )
-        );
+        // Calculate EIP-712 digest
+        bytes32 digest = _calculateDigest(bundle);
 
-        // Verify the hash matches our calculated digest
+        // Verify hash matches digest
         if (_hash != digest) {
             revert DigestMismatch();
         }
 
-        // Recover signer from signature using the digest
-        address signer = ECDSA.recover(digest, bundle.signature);
-
-        // Check if signer matches stored EOA
-        if (signer != getSigner()) {
+        // Recover and validate signer
+        address recoveredSigner = ECDSA.recover(digest, bundle.signature);
+        if (recoveredSigner != getSigner()) {
             revert InvalidSigner();
         }
 
-        return ERC1271.isValidSignature.selector;
+        return IERC1271.isValidSignature.selector;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -130,7 +139,10 @@ contract SignatureValidator is OwnableUpgradeable, ERC1271Upgradeable, UUPSUpgra
      * @param _owner The owner address
      * @param _signer The signer address
      */
-    function reinitialize(uint64 version, address _owner, address _signer) public reinitializer(version) {
+    function reinitialize(uint64 version, address _owner, address _signer)
+        public
+        reinitializer(version)
+    {
         __Ownable_init(_owner);
         __ERC1271_init_unchained(_signer);
     }
@@ -150,7 +162,12 @@ contract SignatureValidator is OwnableUpgradeable, ERC1271Upgradeable, UUPSUpgra
      * @return name The domain name
      * @return version The domain version
      */
-    function _domainNameAndVersion() internal pure override returns (string memory name, string memory version) {
+    function _domainNameAndVersion()
+        internal
+        pure
+        override
+        returns (string memory name, string memory version)
+    {
         name = "BlockHashValidator";
         version = "1";
     }
@@ -161,5 +178,44 @@ contract SignatureValidator is OwnableUpgradeable, ERC1271Upgradeable, UUPSUpgra
      */
     function _domainNameAndVersionMayChange() internal pure override returns (bool) {
         return true;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                            INTERNAL HELPERS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Validates block hash and number constraints
+     * @param bundle The block hash bundle to validate
+     */
+    function _validateBlockHash(RecentBlockHashBundle memory bundle) internal view {
+        if (bundle.hash != blockhash(bundle.number)) {
+            revert InvalidBlockHash();
+        }
+        if (bundle.number > block.number) {
+            revert BlockFromFuture();
+        }
+        if (block.number - bundle.number > 256) {
+            revert BlockTooOld();
+        }
+    }
+
+    /**
+     * @notice Calculates EIP-712 digest from bundle
+     * @param bundle The block hash bundle
+     * @return bytes32 The calculated digest
+     */
+    function _calculateDigest(RecentBlockHashBundle memory bundle)
+        internal
+        view
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                _domainSeparator(),
+                keccak256(abi.encode(RECENT_BLOCK_HASH_TYPEHASH, bundle.number, bundle.hash))
+            )
+        );
     }
 }

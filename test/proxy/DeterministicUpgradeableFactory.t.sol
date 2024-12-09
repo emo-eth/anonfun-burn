@@ -25,7 +25,8 @@ contract DeterministicUpgradeableFactoryTest is Test {
     function test_deployDeterministicUUPSAndUpgradeTo() public {
         address proxy = factory.deployDeterministicUUPS(keccak256("salt"), address(this));
         SimpleUpgradeableProxy(payable(proxy)).upgradeToAndCall(
-            address(implementation), abi.encodeWithSelector(HelloWorld.initialize.selector, "Hello World")
+            address(implementation),
+            abi.encodeWithSelector(HelloWorld.initialize.selector, "Hello World")
         );
         HelloWorld proxyContract = HelloWorld(payable(proxy));
         assertEq(proxyContract.message(), "Hello World");
@@ -38,7 +39,8 @@ contract DeterministicUpgradeableFactoryTest is Test {
 
     function test_sameSaltDifferentOwnerDifferentDeployAddress() public {
         address proxy1 = factory.deployDeterministicUUPS(keccak256("salt"), address(this));
-        address proxy2 = factory.deployDeterministicUUPS(keccak256("salt"), address(makeAddr("owner2")));
+        address proxy2 =
+            factory.deployDeterministicUUPS(keccak256("salt"), address(makeAddr("owner2")));
         assertNotEq(proxy1, proxy2);
     }
 }

@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {ERC1271} from "solady/accounts/ERC1271.sol";
-import {IERC1271} from "openzeppelin-contracts/interfaces/IERC1271.sol";
 import {EIP712} from "solady/utils/EIP712.sol";
+import {IERC1271} from "openzeppelin-contracts/interfaces/IERC1271.sol";
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
-import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title ERC1271Upgradeable
@@ -13,19 +11,31 @@ import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgrade
  * @dev Inherits from IERC1271 and EIP712 for signature validation
  */
 abstract contract ERC1271Upgradeable is IERC1271, EIP712, Initializable {
+    /*//////////////////////////////////////////////////////////////
+                                EVENTS
+    //////////////////////////////////////////////////////////////*/
+
     event SignerChanged(address oldSigner, address newSigner);
 
+    /*//////////////////////////////////////////////////////////////
+                                STORAGE
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Storage struct for ERC1271Upgradeable
+     * @dev Stored at a fixed slot to maintain upgradeability
+     */
     struct ERC1271UpgradeableStorage {
-        /**
-         * @notice The address of the signer
-         */
-        address signer;
+        address signer; // Address authorized to sign messages
     }
 
-    // keccak256(abi.encode(uint256(keccak256("anonfun.storage.ERC1271Upgradeable")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant _STORAGE_SLOT = 0xf695917c9b3214e876a160829e44ba34b727c9c364f152d05bc1066f53bcf200;
+    // Storage slot computed as: keccak256(abi.encode(uint256(keccak256("anonfun.storage.ERC1271Upgradeable")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant _STORAGE_SLOT =
+        0xa4875c9777b077c6a44cbe5181097308a8f445cd01510a5b32ede0d9376ea000;
 
-    /* Virtual functions to implement */
+    /*//////////////////////////////////////////////////////////////
+                            ABSTRACT METHODS
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Validates a signature according to ERC1271
@@ -33,7 +43,11 @@ abstract contract ERC1271Upgradeable is IERC1271, EIP712, Initializable {
      * @param signature The signature to validate
      * @return bytes4 The function selector if valid, or 0 if invalid
      */
-    function isValidSignature(bytes32 hash, bytes calldata signature) public view virtual returns (bytes4);
+    function isValidSignature(bytes32 hash, bytes calldata signature)
+        public
+        view
+        virtual
+        returns (bytes4);
 
     /**
      * @notice Sets a new signer address
@@ -41,7 +55,9 @@ abstract contract ERC1271Upgradeable is IERC1271, EIP712, Initializable {
      */
     function setSigner(address _signer) public virtual;
 
-    /* Public interface */
+    /*//////////////////////////////////////////////////////////////
+                            PUBLIC INTERFACE
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Gets the domain separator used for EIP712 signing
@@ -59,7 +75,9 @@ abstract contract ERC1271Upgradeable is IERC1271, EIP712, Initializable {
         return getStorage().signer;
     }
 
-    /* Internal functions */
+    /*//////////////////////////////////////////////////////////////
+                            INTERNAL METHODS
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Internal function to update the signer
@@ -71,15 +89,9 @@ abstract contract ERC1271Upgradeable is IERC1271, EIP712, Initializable {
         emit SignerChanged(oldSigner, _signer);
     }
 
-    /**
-     * @notice Internal function to get the current signer
-     * @return address The current signer
-     */
-    function _erc1271Signer() internal view returns (address) {
-        return getStorage().signer;
-    }
-
-    /* Proxy admin */
+    /*//////////////////////////////////////////////////////////////
+                        INITIALIZATION LOGIC
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Initializes the contract with a signer
@@ -89,7 +101,9 @@ abstract contract ERC1271Upgradeable is IERC1271, EIP712, Initializable {
         _setSigner(_signer);
     }
 
-    /* Storage */
+    /*//////////////////////////////////////////////////////////////
+                            STORAGE ACCESS
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @dev Gets the storage struct

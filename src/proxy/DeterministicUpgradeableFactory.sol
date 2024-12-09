@@ -1,28 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {SimpleUpgradeableProxy} from "./SimpleUpgradeableProxy.sol";
 import {ERC1967Proxy} from "openzeppelin-contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {SimpleUpgradeableProxy} from "./SimpleUpgradeableProxy.sol";
 
 /**
  * @title DeterministicUpgradeableFactory
  * @author emo.eth
- * @notice This factory is used to deploy Openzeppelin ERC1967 UUPSUpgradeable proxies to deterministic addresses
- *         on any chain using the CREATE2 opcode. The initial proxy implementation is a simple UUPSUpgradeable proxy
- *         that implements OwnableUpgradeable, which the factory initializes with a provided owner.
+ * @notice This factory deploys Openzeppelin ERC1967 UUPSUpgradeable proxies to deterministic
+ * addresses on any chain using CREATE2. The initial proxy implementation is a simple
+ * UUPSUpgradeable proxy that implements Ownable2StepUpgradeable, which the factory initializes with
+ * a provided owner.
  */
 contract DeterministicUpgradeableFactory {
-    SimpleUpgradeableProxy immutable implementation;
+    /*//////////////////////////////////////////////////////////////
+                                STATE
+    //////////////////////////////////////////////////////////////*/
+
+    SimpleUpgradeableProxy internal immutable _implementation;
 
     constructor() {
-        implementation = new SimpleUpgradeableProxy();
+        _implementation = new SimpleUpgradeableProxy();
     }
 
+    /*//////////////////////////////////////////////////////////////
+                            CORE LOGIC
+    //////////////////////////////////////////////////////////////*/
+
     /**
-     * @notice Deploy a deterministic ERC1967 proxy with an initial Ownable UUPSUpgradeable implementation, initialized
-     *         with the provided owner.
-     *
+     * @notice Deploy a deterministic ERC1967 proxy with an initial Ownable UUPSUpgradeable
+     * implementation, initialized with the provided owner
      * @param salt The salt to use for the deterministic deployment
      * @param owner The owner to initialize the proxy with
      * @return The address of the deployed proxy
@@ -32,22 +39,36 @@ contract DeterministicUpgradeableFactory {
         // result in different addresses
         address proxy = address(
             new ERC1967Proxy{salt: salt}(
-                address(implementation), abi.encodeWithSelector(implementation.initialize.selector, owner)
+                address(_implementation),
+                abi.encodeWithSelector(_implementation.initialize.selector, owner)
             )
         );
         return proxy;
     }
 
     /**
-     * @notice Predict the address of a deterministic ERC1967 proxy with an initial Ownable UUPSUpgradeable implementation
+     * @notice Predict the address of a deterministic ERC1967 proxy with an initial Ownable
+     * UUPSUpgradeable implementation
      * @param salt The salt to use for the deterministic deployment
      * @param owner The owner to initialize the proxy with
      * @return The address of the deployed proxy
      */
-    function predictDeterministicUUPSAddress(bytes32 salt, address owner) public view returns (address) {
+    function predictDeterministicUUPSAddress(bytes32 salt, address owner)
+        public
+        view
+        returns (address)
+    {
         bytes32 initCodeHash = getInitCodeHashForOwner(owner);
-        // use initcodehash and salt to derive create2 address
-        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash)))));
+
+        // Use initcodehash and salt to derive CREATE2 address
+        // CREATE2 address = keccak256(0xff ++ deployerAddress ++ salt ++ initCodeHash)[12:]
+        return address(
+            uint160(
+                uint256(
+                    keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash))
+                )
+            )
+        );
     }
 
     /**
@@ -59,7 +80,10 @@ contract DeterministicUpgradeableFactory {
         return keccak256(
             abi.encodePacked(
                 type(ERC1967Proxy).creationCode,
-                abi.encode(address(implementation), abi.encodeWithSelector(implementation.initialize.selector, owner))
+                abi.encode(
+                    address(_implementation),
+                    abi.encodeWithSelector(_implementation.initialize.selector, owner)
+                )
             )
         );
     }

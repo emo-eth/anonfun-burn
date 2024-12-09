@@ -4,7 +4,10 @@ pragma solidity ^0.8.28;
 import {Test} from "forge-std/Test.sol";
 import {SignatureValidator} from "src/SignatureValidator.sol";
 
-import {DeterministicUpgradeableFactory, SimpleUpgradeableProxy} from "src/proxy/DeterministicUpgradeableFactory.sol";
+import {
+    DeterministicUpgradeableFactory,
+    SimpleUpgradeableProxy
+} from "src/proxy/DeterministicUpgradeableFactory.sol";
 import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 import {IERC1271} from "openzeppelin-contracts/interfaces/IERC1271.sol";
 
@@ -28,10 +31,12 @@ contract SignatureValidatorTest is Test {
         implementation = new SignatureValidator();
         signer = makeAccount("signer");
 
-        SimpleUpgradeableProxy proxy = SimpleUpgradeableProxy(factory.deployDeterministicUUPS(0, address(this)));
+        SimpleUpgradeableProxy proxy =
+            SimpleUpgradeableProxy(factory.deployDeterministicUUPS(0, address(this)));
 
         proxy.upgradeToAndCall(
-            address(implementation), abi.encodeCall(implementation.reinitialize, (2, address(this), signer.addr))
+            address(implementation),
+            abi.encodeCall(implementation.reinitialize, (2, address(this), signer.addr))
         );
         validator = SignatureValidator(address(proxy));
     }
@@ -52,7 +57,7 @@ contract SignatureValidatorTest is Test {
         validator.setSigner(address(0));
     }
 
-    function testIsValidSignature() public {
+    function testIsValidSignature() public view {
         // Use real block data from mainnet
         uint256 blockNum = FORK_BLOCK_NUMBER - 1; // Previous block
         bytes32 blockHash = blockhash(blockNum);
@@ -67,8 +72,8 @@ contract SignatureValidatorTest is Test {
 
         bytes memory signature = signDigest(signer.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
 
         bytes4 result = validator.isValidSignature(digest, abi.encode(bundle));
         assertEq(result, IERC1271.isValidSignature.selector);
@@ -88,8 +93,8 @@ contract SignatureValidatorTest is Test {
 
         bytes memory signature = signDigest(signer.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: blockNum, hash: wrongHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: blockNum, hash: wrongHash, signature: signature});
 
         vm.expectRevert(SignatureValidator.InvalidBlockHash.selector);
         validator.isValidSignature(digest, abi.encode(bundle));
@@ -104,14 +109,16 @@ contract SignatureValidatorTest is Test {
             abi.encodePacked(
                 "\x19\x01",
                 validator.domainSeparator(),
-                keccak256(abi.encode(validator.RECENT_BLOCK_HASH_TYPEHASH(), oldBlockNum, blockHash))
+                keccak256(
+                    abi.encode(validator.RECENT_BLOCK_HASH_TYPEHASH(), oldBlockNum, blockHash)
+                )
             )
         );
 
         bytes memory signature = signDigest(signer.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: oldBlockNum, hash: blockHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: oldBlockNum, hash: blockHash, signature: signature});
 
         vm.expectRevert(SignatureValidator.BlockTooOld.selector);
         validator.isValidSignature(digest, abi.encode(bundle));
@@ -125,14 +132,16 @@ contract SignatureValidatorTest is Test {
             abi.encodePacked(
                 "\x19\x01",
                 validator.domainSeparator(),
-                keccak256(abi.encode(validator.RECENT_BLOCK_HASH_TYPEHASH(), futureBlockNum, blockHash))
+                keccak256(
+                    abi.encode(validator.RECENT_BLOCK_HASH_TYPEHASH(), futureBlockNum, blockHash)
+                )
             )
         );
 
         bytes memory signature = signDigest(signer.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: futureBlockNum, hash: blockHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: futureBlockNum, hash: blockHash, signature: signature});
 
         vm.expectRevert(SignatureValidator.BlockFromFuture.selector);
         validator.isValidSignature(digest, abi.encode(bundle));
@@ -152,8 +161,8 @@ contract SignatureValidatorTest is Test {
 
         bytes memory signature = signDigest(signer.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
 
         bytes32 wrongDigest = keccak256("wrong digest");
 
@@ -176,8 +185,8 @@ contract SignatureValidatorTest is Test {
         Account memory wrongSigner = makeAccount("wrongSigner");
         bytes memory signature = signDigest(wrongSigner.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
 
         vm.expectRevert(SignatureValidator.InvalidSigner.selector);
         validator.isValidSignature(digest, abi.encode(bundle));
@@ -199,8 +208,8 @@ contract SignatureValidatorTest is Test {
 
         bytes memory signature = signDigest(signer.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
 
         vm.expectRevert(SignatureValidator.BlockFromFuture.selector);
         validator.isValidSignature(digest, abi.encode(bundle));
@@ -222,8 +231,8 @@ contract SignatureValidatorTest is Test {
 
         bytes memory signature = signDigest(signer.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
 
         // Should still work since blockNum is valid
         bytes4 result = validator.isValidSignature(digest, abi.encode(bundle));
@@ -247,8 +256,8 @@ contract SignatureValidatorTest is Test {
 
         bytes memory signature = signDigest(signer.key, digest);
 
-        SignatureValidator.RecentBlockHashBundle memory bundle =
-            SignatureValidator.RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
+        SignatureValidator.RecentBlockHashBundle memory bundle = SignatureValidator
+            .RecentBlockHashBundle({number: blockNum, hash: blockHash, signature: signature});
 
         vm.expectRevert(SignatureValidator.BlockTooOld.selector);
         validator.isValidSignature(digest, abi.encode(bundle));

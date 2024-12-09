@@ -29,7 +29,9 @@ interface ILpLocker {
     function duration() external view returns (uint256);
     function end() external view returns (uint256);
     function initializer(uint256 token_id) external;
-    function onERC721Received(address, address from, uint256 id, bytes memory data) external returns (bytes4);
+    function onERC721Received(address, address from, uint256 id, bytes memory data)
+        external
+        returns (bytes4);
     function owner() external view returns (address);
     function release() external;
     function released(address token) external view returns (uint256);

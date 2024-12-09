@@ -1,66 +1,26 @@
-## Foundry
+# DeterministicUpgradeableFactory
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+- Deploys deterministic ERC1967 UUPSUpgradeable proxies using CREATE2
+- (For deploying the UniV3Rebuyer to Base, and the SignatureValidator to OP Mainnet)
 
-Foundry consists of:
+# SignatureValidator
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+- Validates ERC1271 signatures via an EOA-signed EIP712 signature of a recent blockhash
+- Owner-configured signer
+- (For Farcaster address linking)
 
-## Documentation
+# UniV3Rebuyer
 
-https://book.getfoundry.sh/
+ 
+- Collects fees from a default Clanker LPLocker
+- Can collect fees for other owned Clanker LPLockers, including V2
+- Can accept ETH and convert it to WETH
+- Once per time period, can swap WETH for the token in the pool and burn the LP tokens
+- Basic reentry mitigation by restricting caller to EOAs (until Pectra hardfork makes tx.origin checks moot)
+- Checks tick has not moved too far from last block's tick (approximated in BPS)
+- Partial fills up to a max price (approximated in BPS) when liquidity at current tick is low
+- Owner-configurable WETH limit per-swap
+- Owner-set swap interval period
+- Owner-set max deviation from current tick (approximated in BPS)
 
-## Usage
 
-### Build
-
-```shell
-$ forge build
-```
-
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```

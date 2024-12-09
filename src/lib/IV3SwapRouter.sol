@@ -23,5 +23,8 @@ interface IV3SwapRouter {
     /// and swap the entire amount, enabling contracts to send tokens before calling this function.
     /// @param params The parameters necessary for the swap, encoded as `ExactInputSingleParams` in calldata
     /// @return amountOut The amount of the received token
-    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+    function exactInputSingle(ExactInputSingleParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut);
 }

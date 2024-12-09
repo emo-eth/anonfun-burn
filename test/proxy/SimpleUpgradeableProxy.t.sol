@@ -33,7 +33,9 @@ contract SimpleUpgradeableProxyTest is Test {
 
     function testUpgradeTo_OnlyOwner() public {
         vm.expectRevert(
-            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, makeAddr("other"))
+            abi.encodeWithSelector(
+                OwnableUpgradeable.OwnableUnauthorizedAccount.selector, makeAddr("other")
+            )
         );
         vm.prank(makeAddr("other"));
         SimpleUpgradeableProxy(payable(proxy)).upgradeToAndCall(
