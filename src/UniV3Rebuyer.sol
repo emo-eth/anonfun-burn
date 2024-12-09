@@ -16,7 +16,9 @@ import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradea
 
 /**
  * @title UniV3Rebuyer
- * @notice Handles automated rebuying of tokens using Uniswap V3
+ * @author emo.eth
+ * @notice Handles automated rebuying of tokens using Uniswap V3.
+ * h/t fc:carter: https://gitlab.com/cter/rebuyer
  * @dev Implements price validation and automated swapping with configurable parameters
  */
 contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
