@@ -3,10 +3,9 @@ pragma solidity ^0.8.28;
 
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {Ownable2StepUpgradeable} from "openzeppelin-upgradeable/access/Ownable2StepUpgradeable.sol";
-import {AuthorizableUpgradeable} from "./lib/AuthorizableUpgradeable.sol";
 import {UUPSUpgradeable} from "openzeppelin-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-contract AnonBurn is Initializable, Ownable2StepUpgradeable, AuthorizableUpgradeable, UUPSUpgradeable {
+contract AnonBurn is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
     struct AnonBurnStorage {
         uint32 frequency;
         address token;
@@ -24,7 +23,6 @@ contract AnonBurn is Initializable, Ownable2StepUpgradeable, AuthorizableUpgrade
 
     function initialize(uint32 frequency, address token, address _owner, address _authorized) public initializer {
         __Ownable_init(_owner);
-        __Authorizable_init(_authorized);
         __AnonBurn_init_unchained(frequency, token);
     }
 
