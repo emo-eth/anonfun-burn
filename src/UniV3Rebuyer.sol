@@ -45,9 +45,9 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @notice Thrown when price deviation exceeds maximum allowed
      * @param currentPrice Current pool price
      * @param recentPrice Recent pool price
-     * @param maxDeviationBps Maximum allowed deviation in basis points
+     * @param maxIncreaseBps Maximum allowed deviation in basis points
      */
-    error PriceDeviationTooHigh(uint256 currentPrice, uint256 recentPrice, uint16 maxDeviationBps);
+    error PriceDeviationTooHigh(uint256 currentPrice, uint256 recentPrice, uint16 maxIncreaseBps);
 
     /**
      * @notice Thrown when attempting to swap before minimum delay
@@ -83,14 +83,14 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param maxAmountOutPerTx Maximum amount of tokens to swap per transaction
      * @param minSwapDelay Minimum time between swaps
      * @param lastSwapTimestamp Timestamp of last swap
-     * @param maxDeviationBps Maximum allowed price deviation in basis points
+     * @param maxIncreaseBps Maximum allowed price deviation in basis points
      * @param paused Pause flag
      */
     struct UniV3RebuyerStorage {
         uint96 maxAmountOutPerTx;
         uint40 minSwapDelay;
         uint40 lastSwapTimestamp;
-        uint16 maxDeviationBps;
+        uint16 maxIncreaseBps;
         bool paused;
     }
 
@@ -212,7 +212,7 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
         }
 
         // Validate price and get max sqrt price limit
-        uint256 maxSqrtPriceX96 = _validatePrice(store.maxDeviationBps);
+        uint256 maxSqrtPriceX96 = _validatePrice(store.maxIncreaseBps);
 
         // Execute swap on Uniswap V3
         uint256 amountOut = V3_ROUTER.exactInputSingle(
@@ -248,11 +248,12 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
     }
 
     /**
-     * @notice Validates that the current price is not too far from the recent price
-     * @param maxDeviationBps The maximum allowed deviation in basis points (1 bp = 0.01%)
+     * @notice Validates that the current price is not too far from the most-recent block,
+     * but does not check for multi-block manipulation
+     * @param maxIncreaseBps The maximum allowed deviation in basis points (1 bp = 0.01%)
      * @return maxSqrtPriceX96 The maximum sqrt price ratio allowed
      */
-    function _validatePrice(uint16 maxDeviationBps) internal view returns (uint256) {
+    function _validatePrice(uint16 maxIncreaseBps) internal view returns (uint256) {
         // Get current pool state
         (, int24 currentTick,,,,,) = POOL.slot0();
 
@@ -271,19 +272,19 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
         int24 tickDifference = currentTick - arithmeticMeanTick;
 
         // Each tick represents ~0.01% price change (~1 basis point)
-        // Convert maxDeviationBps to equivalent tick range
-        int24 maxTickDeviation = int24(uint24(maxDeviationBps));
+        // Convert maxIncreaseBps to equivalent tick range
+        int24 maxTickDeviation = int24(uint24(maxIncreaseBps));
 
         // Revert if price difference between this block and last is too high
         if (tickDifference > maxTickDeviation) {
             revert PriceDeviationTooHigh(
-                uint256(uint24(currentTick)), uint256(uint24(arithmeticMeanTick)), maxDeviationBps
+                uint256(uint24(currentTick)), uint256(uint24(arithmeticMeanTick)), maxIncreaseBps
             );
         }
 
         // Add safety margin for max swap price to mitigate out-of-range swaps if liquidity is low
         // at the current tick
-        int24 maxTick = currentTick + int24(uint24(maxDeviationBps));
+        int24 maxTick = currentTick + int24(uint24(maxIncreaseBps));
         return TickMath.getSqrtRatioAtTick(maxTick);
     }
 
@@ -321,11 +322,11 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
 
     /**
      * @notice Sets the maximum price deviation allowed in basis points
-     * @param _maxDeviationBps New maximum price deviation in basis points
+     * @param _maxIncreaseBps New maximum price deviation in basis points
      */
-    function setMaxDeviationBps(uint16 _maxDeviationBps) external onlyOwner {
+    function setMaxIncreaseBps(uint16 _maxIncreaseBps) external onlyOwner {
         UniV3RebuyerStorage storage store = getStorage();
-        store.maxDeviationBps = _maxDeviationBps;
+        store.maxIncreaseBps = _maxIncreaseBps;
     }
 
     /**
@@ -341,19 +342,19 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @notice Bulk setter for all parameters
      * @param _maxAmountOutPerTx New maximum amount per transaction
      * @param _minSwapDelay New minimum delay between swaps
-     * @param _maxDeviationBps New maximum price deviation in basis points
+     * @param _maxIncreaseBps New maximum price deviation in basis points
      * @param _paused New paused state
      */
     function setParameters(
         uint96 _maxAmountOutPerTx,
         uint40 _minSwapDelay,
-        uint16 _maxDeviationBps,
+        uint16 _maxIncreaseBps,
         bool _paused
     ) external onlyOwner {
         UniV3RebuyerStorage storage store = getStorage();
         store.maxAmountOutPerTx = _maxAmountOutPerTx;
         store.minSwapDelay = _minSwapDelay;
-        store.maxDeviationBps = _maxDeviationBps;
+        store.maxIncreaseBps = _maxIncreaseBps;
         store.paused = _paused;
     }
 
@@ -389,8 +390,8 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @notice Gets the maximum price deviation allowed in basis points
      * @return Maximum price deviation in basis points
      */
-    function getMaxDeviationBps() public view returns (uint16) {
-        return getStorage().maxDeviationBps;
+    function getMaxIncreaseBps() public view returns (uint16) {
+        return getStorage().maxIncreaseBps;
     }
 
     /**
@@ -409,31 +410,31 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @notice Initializes the contract
      * @param maxAmountOutPerTx Maximum amount allowed per transaction
      * @param minSwapDelay Minimum delay between swaps
-     * @param maxDeviationBps Maximum price deviation allowed in basis points
+     * @param maxIncreaseBps Maximum price deviation allowed in basis points
      */
     function __UniV3Rebuyer_init(
         uint96 maxAmountOutPerTx,
         uint40 minSwapDelay,
-        uint16 maxDeviationBps
+        uint16 maxIncreaseBps
     ) internal {
-        __UniV3Rebuyer_init_unchained(maxAmountOutPerTx, minSwapDelay, maxDeviationBps);
+        __UniV3Rebuyer_init_unchained(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps);
     }
 
     /**
      * @notice Unchained initialization logic
      * @param maxAmountOutPerTx Maximum amount allowed per transaction
      * @param minSwapDelay Minimum delay between swaps
-     * @param maxDeviationBps Maximum price deviation allowed in basis points
+     * @param maxIncreaseBps Maximum price deviation allowed in basis points
      */
     function __UniV3Rebuyer_init_unchained(
         uint96 maxAmountOutPerTx,
         uint40 minSwapDelay,
-        uint16 maxDeviationBps
+        uint16 maxIncreaseBps
     ) internal onlyInitializing {
         UniV3RebuyerStorage storage store = getStorage();
         store.maxAmountOutPerTx = maxAmountOutPerTx;
         store.minSwapDelay = minSwapDelay;
-        store.maxDeviationBps = maxDeviationBps;
+        store.maxIncreaseBps = maxIncreaseBps;
         WETH.approve(address(V3_ROUTER), type(uint256).max);
     }
 
@@ -442,16 +443,16 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param owner Address of contract owner
      * @param maxAmountOutPerTx Maximum amount allowed per transaction
      * @param minSwapDelay Minimum delay between swaps
-     * @param maxDeviationBps Maximum price deviation allowed in basis points
+     * @param maxIncreaseBps Maximum price deviation allowed in basis points
      */
     function initialize(
         address owner,
         uint96 maxAmountOutPerTx,
         uint40 minSwapDelay,
-        uint16 maxDeviationBps
+        uint16 maxIncreaseBps
     ) public initializer {
         __Ownable_init(owner);
-        __UniV3Rebuyer_init(maxAmountOutPerTx, minSwapDelay, maxDeviationBps);
+        __UniV3Rebuyer_init(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps);
     }
 
     /**
@@ -459,15 +460,15 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param version New version number
      * @param maxAmountOutPerTx Maximum amount allowed per transaction
      * @param minSwapDelay Minimum delay between swaps
-     * @param maxDeviationBps Maximum price deviation allowed in basis points
+     * @param maxIncreaseBps Maximum price deviation allowed in basis points
      */
     function reinitialize(
         uint64 version,
         uint96 maxAmountOutPerTx,
         uint40 minSwapDelay,
-        uint16 maxDeviationBps
+        uint16 maxIncreaseBps
     ) public reinitializer(version) {
-        __UniV3Rebuyer_init_unchained(maxAmountOutPerTx, minSwapDelay, maxDeviationBps);
+        __UniV3Rebuyer_init_unchained(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps);
     }
 
     /**

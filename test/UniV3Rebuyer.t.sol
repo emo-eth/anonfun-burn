@@ -194,7 +194,7 @@ contract UniV3RebuyerTest is Test {
 
         assertEq(rebuyer.getMaxAmountOutPerTx(), 2e18);
         assertEq(rebuyer.getMinSwapDelay(), 2 hours);
-        assertEq(rebuyer.getMaxDeviationBps(), 20);
+        assertEq(rebuyer.getMaxIncreaseBps(), 20);
     }
 
     function testUpgrade_OnlyOwner() public {
@@ -224,13 +224,13 @@ contract UniV3RebuyerTest is Test {
         assertEq(rebuyer.getMinSwapDelay(), newDelay);
 
         uint16 newDeviation = 20;
-        rebuyer.setMaxDeviationBps(newDeviation);
-        assertEq(rebuyer.getMaxDeviationBps(), newDeviation);
+        rebuyer.setMaxIncreaseBps(newDeviation);
+        assertEq(rebuyer.getMaxIncreaseBps(), newDeviation);
 
         rebuyer.setParameters(3e18, 3 hours, 30, true);
         assertEq(rebuyer.getMaxAmountOutPerTx(), 3e18);
         assertEq(rebuyer.getMinSwapDelay(), 3 hours);
-        assertEq(rebuyer.getMaxDeviationBps(), 30);
+        assertEq(rebuyer.getMaxIncreaseBps(), 30);
         assertTrue(rebuyer.isPaused());
     }
 
@@ -251,7 +251,7 @@ contract UniV3RebuyerTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, nonOwner)
         );
-        rebuyer.setMaxDeviationBps(20);
+        rebuyer.setMaxIncreaseBps(20);
 
         vm.expectRevert(
             abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, nonOwner)
@@ -290,7 +290,7 @@ contract UniV3RebuyerTest is Test {
     function testInitialization() public {
         assertEq(rebuyer.getMaxAmountOutPerTx(), MAX_AMOUNT_PER_TX);
         assertEq(rebuyer.getMinSwapDelay(), MIN_SWAP_DELAY);
-        assertEq(rebuyer.getMaxDeviationBps(), MAX_DEVIATION_BPS);
+        assertEq(rebuyer.getMaxIncreaseBps(), MAX_DEVIATION_BPS);
         assertEq(WETH.allowance(address(rebuyer), address(V3_ROUTER)), type(uint256).max);
     }
 
@@ -430,7 +430,7 @@ contract UniV3RebuyerTest is Test {
         // Verify initialization
         assertEq(newRebuyer.getMaxAmountOutPerTx(), MAX_AMOUNT_PER_TX);
         assertEq(newRebuyer.getMinSwapDelay(), MIN_SWAP_DELAY);
-        assertEq(newRebuyer.getMaxDeviationBps(), MAX_DEVIATION_BPS);
+        assertEq(newRebuyer.getMaxIncreaseBps(), MAX_DEVIATION_BPS);
     }
 
     function testValidateCallerAndTimestamp_NonEOA() public {
