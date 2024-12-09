@@ -13,11 +13,25 @@ checksum = "87854223d14941d6fda3d78d900217e79e25755ea5bc48beca035766fa6a4e7e"
 integrity = "826fb621339dcee4261f848b283ec86364743d3c289d61f621747d95e315215a"
 
 [[dependencies]]
+name = "@uniswap-v3-core"
+version = "1.0.2-solc-0.8-simulate"
+url = "https://soldeer-revisions.s3.amazonaws.com/@uniswap-v3-core/1_0_2-solc-0_8-simulate_22-01-2024_13:19:54_v3-core.zip"
+checksum = "68949c67a4f22044e4c8dc716362b6d79b07e8990e720bec9b116f54b233ef57"
+integrity = "697a089ffe197580b6cfe07f0c4dd8a35da0836fd1d9e522f73efda4b7314e01"
+
+[[dependencies]]
 name = "@uniswap-v3-periphery"
 version = "1.4.4"
 url = "https://soldeer-revisions.s3.amazonaws.com/@uniswap-v3-periphery/1_4_4_22-01-2024_13:20:51_v3-periphery.zip"
 checksum = "f1ce151585a084bb3ec6fb9cbce4520924d41398c3ce8979169de6f7f70d6a81"
 integrity = "e101a06117b3274cd21a3032fa9a55446e842dc0e0e1b0b25008e094a446c453"
+
+[[dependencies]]
+name = "create2-helpers"
+version = "0.3.2"
+url = "https://soldeer-revisions.s3.amazonaws.com/create2-helpers/0_3_2_08-12-2024_21:22:20_create2-helpers.zip"
+checksum = "4951b502066ed86f75682fc0eb07df336bbc4044e307b66dfb8e06eb4de33b11"
+integrity = "e033f7b90a6d7877c6c51f3d1ca1a723392d1d96e9fb41fe908feebdb4c7adb5"
 
 [[dependencies]]
 name = "forge-std"
