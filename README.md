@@ -10,7 +10,7 @@ forge test
 - Deploys deterministic ERC1967 UUPSUpgradeable proxies using CREATE2
 - (For deploying the UniV3Rebuyer to Base, and the SignatureValidator to OP Mainnet)
 
-# SignatureValidator
+# FarcasterSignatureValidator
 
 - Validates ERC1271 signatures via an EOA-signed EIP712 signature of a recent blockhash
 - Owner-configured signer

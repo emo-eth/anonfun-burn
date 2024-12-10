@@ -5,7 +5,7 @@ import {Script, console2} from "forge-std/Script.sol";
 import {BaseCreate2Script} from "create2-helpers/script/BaseCreate2Script.s.sol";
 import {DeterministicUpgradeableFactory} from "src/proxy/DeterministicUpgradeableFactory.sol";
 import {SimpleUpgradeableProxy} from "src/proxy/SimpleUpgradeableProxy.sol";
-import {SignatureValidator} from "src/SignatureValidator.sol";
+import {FarcasterSignatureValidator} from "src/FarcasterSignatureValidator.sol";
 import {UniV3Rebuyer} from "src/UniV3Rebuyer.sol";
 
 /**
@@ -90,14 +90,15 @@ contract Deploy is BaseCreate2Script {
         SimpleUpgradeableProxy(proxy).upgradeToAndCall(
             verifier,
             abi.encodeCall(
-                SignatureValidator.reinitialize, (2, deployer, vm.envAddress("ERC1271_SIGNER"))
+                FarcasterSignatureValidator.reinitialize,
+                (5, deployer, vm.envAddress("ERC1271_SIGNER"))
             )
         );
 
         // Verify upgrade
-        require(SignatureValidator(proxy).owner() == deployer, "Owner not set");
+        require(FarcasterSignatureValidator(proxy).owner() == deployer, "Owner not set");
         require(
-            SignatureValidator(proxy).getSigner() == vm.envAddress("ERC1271_SIGNER"),
+            FarcasterSignatureValidator(proxy).getSigner() == vm.envAddress("ERC1271_SIGNER"),
             "Signer not set"
         );
     }
@@ -148,8 +149,9 @@ contract Deploy is BaseCreate2Script {
         if (block.chainid != 10 && block.chainid != 11155420) return;
 
         console2.log("Upgrading op proxy to signature validator");
-        address verifier =
-            _create2IfNotDeployed(deployer, bytes32(0), type(SignatureValidator).creationCode);
+        address verifier = _create2IfNotDeployed(
+            deployer, bytes32(0), type(FarcasterSignatureValidator).creationCode
+        );
         console2.log("Verifier deployed at", verifier);
 
         try this.upgradeOpProxy(verifier, proxy) {

@@ -9,31 +9,55 @@ import {UUPSUpgradeable} from "openzeppelin-contracts/proxy/utils/UUPSUpgradeabl
 import {IERC1271} from "openzeppelin-contracts/interfaces/IERC1271.sol";
 
 /**
- * @title SignatureValidator
- * @notice Contract for validating signatures against recent block hashes
- * @dev Implements ERC1271 signature validation with upgradeable proxy support
+ * @title SignatureValidator2
+ * @notice Contract for validating Farcaster verification signatures
+ * @dev Implements ERC1271 signature validation with Farcaster's EIP-712 domain
+ * @dev Uses network 10 (Optimism) and FID 883713
  */
-contract SignatureValidator is Ownable2StepUpgradeable, ERC1271Upgradeable, UUPSUpgradeable {
+contract FarcasterSignatureValidator is
+    Ownable2StepUpgradeable,
+    ERC1271Upgradeable,
+    UUPSUpgradeable
+{
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 public constant RECENT_BLOCK_HASH_TYPEHASH =
-        keccak256("RecentBlockHash(uint256 number,bytes32 hash)");
+    /**
+     * @notice TypeHash for the VerificationClaim struct used in EIP-712 domain
+     */
+    bytes32 public constant VERIFICATION_CLAIM_TYPEHASH =
+        keccak256("VerificationClaim(uint256 fid,address address,bytes32 blockHash,uint8 network)");
+
+    /**
+     * @notice Salt used in the EIP-712 domain separator
+     */
+    bytes32 public constant FARCASTER_SALT =
+        0xf2d857f4a3edcb9b78b4d503bfe733db1e3f6cdc2b7971ee739626c97e86a558;
+
+    /**
+     * @notice Farcaster ID for this validator
+     */
+    uint256 public constant FID = 883713;
+
+    /**
+     * @notice Network MAINNET
+     */
+    uint8 public constant NETWORK = 1;
 
     /*//////////////////////////////////////////////////////////////
                                  TYPES
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Bundle containing block data and signature for validation
-     * @param number The block number
-     * @param hash The block hash
+     * @notice Bundle containing verification data and signature
+     * @param blockNumber The block number to use
+     * @param blockHash The block hash to verify
      * @param signature The ECDSA signature of the EIP712 digest
      */
-    struct RecentBlockHashBundle {
-        uint256 number;
-        bytes32 hash;
+    struct VerificationBundle {
+        uint256 blockNumber;
+        bytes32 blockHash;
         bytes signature;
     }
 
@@ -45,11 +69,6 @@ contract SignatureValidator is Ownable2StepUpgradeable, ERC1271Upgradeable, UUPS
      * @notice Thrown when provided block hash does not match chain state
      */
     error InvalidBlockHash();
-
-    /**
-     * @notice Thrown when block number is more than 256 blocks old
-     */
-    error BlockTooOld();
 
     /**
      * @notice Thrown when block number is greater than current block
@@ -73,7 +92,7 @@ contract SignatureValidator is Ownable2StepUpgradeable, ERC1271Upgradeable, UUPS
     /**
      * @notice Validates a signature according to ERC1271
      * @param _hash The hash that was signed
-     * @param _signature The encoded RecentBlockHashBundle
+     * @param _signature The encoded VerificationClaimBundle
      * @return bytes4 The function selector if valid, or reverts if invalid
      */
     function isValidSignature(bytes32 _hash, bytes calldata _signature)
@@ -82,27 +101,77 @@ contract SignatureValidator is Ownable2StepUpgradeable, ERC1271Upgradeable, UUPS
         override
         returns (bytes4)
     {
-        // Decode the signature bundle
-        RecentBlockHashBundle memory bundle = abi.decode(_signature, (RecentBlockHashBundle));
+        VerificationBundle memory bundle = abi.decode(_signature, (VerificationBundle));
 
-        // Validate block hash and number
         _validateBlockHash(bundle);
 
-        // Calculate EIP-712 digest
         bytes32 digest = _calculateDigest(bundle);
 
-        // Verify hash matches digest
         if (_hash != digest) {
             revert DigestMismatch();
         }
 
-        // Recover and validate signer
         address recoveredSigner = ECDSA.recover(digest, bundle.signature);
         if (recoveredSigner != getSigner()) {
             revert InvalidSigner();
         }
 
         return IERC1271.isValidSignature.selector;
+    }
+
+    /**
+     * @notice Validates block hash for externally provided bundles
+     * @param bundle The verification bundle to validate
+     */
+    function _validateBlockHash(VerificationBundle memory bundle) internal view {
+        if (bundle.blockHash != blockhash(bundle.blockNumber)) {
+            revert InvalidBlockHash();
+        }
+        if (bundle.blockNumber > block.number) {
+            revert BlockFromFuture();
+        }
+    }
+
+    /**
+     * @notice Calculates the EIP-712 digest for a verification bundle
+     * @param bundle The verification bundle to calculate digest for
+     * @return The calculated digest
+     */
+    function _calculateDigest(VerificationBundle memory bundle) internal view returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                _domainSeparator(),
+                keccak256(
+                    abi.encode(
+                        VERIFICATION_CLAIM_TYPEHASH, FID, address(this), bundle.blockHash, NETWORK
+                    )
+                )
+            )
+        );
+    }
+
+    /**
+     * @notice Gets the current digest using the previous block's hash
+     * @return The calculated digest for the current block
+     */
+    function getCurrentDigest() external view returns (bytes32) {
+        uint256 blockNumber = block.number - 1;
+
+        if (blockNumber > block.number) {
+            revert BlockFromFuture();
+        }
+
+        bytes32 blockHash = blockhash(blockNumber);
+        return keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                _domainSeparator(),
+                keccak256(
+                    abi.encode(VERIFICATION_CLAIM_TYPEHASH, FID, address(this), blockHash, NETWORK)
+                )
+            )
+        );
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -168,8 +237,8 @@ contract SignatureValidator is Ownable2StepUpgradeable, ERC1271Upgradeable, UUPS
         override
         returns (string memory name, string memory version)
     {
-        name = "BlockHashValidator";
-        version = "1";
+        name = "Farcaster Verify Ethereum Address";
+        version = "2.0.0";
     }
 
     /**
@@ -180,41 +249,18 @@ contract SignatureValidator is Ownable2StepUpgradeable, ERC1271Upgradeable, UUPS
         return true;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            INTERNAL HELPERS
-    //////////////////////////////////////////////////////////////*/
-
     /**
-     * @notice Validates block hash and number constraints
-     * @param bundle The block hash bundle to validate
+     * @notice Calculates the EIP-712 domain separator
+     * @return The domain separator hash
      */
-    function _validateBlockHash(RecentBlockHashBundle memory bundle) internal view {
-        if (bundle.hash != blockhash(bundle.number)) {
-            revert InvalidBlockHash();
-        }
-        if (bundle.number > block.number) {
-            revert BlockFromFuture();
-        }
-        if (block.number - bundle.number > 256) {
-            revert BlockTooOld();
-        }
-    }
-
-    /**
-     * @notice Calculates EIP-712 digest from bundle
-     * @param bundle The block hash bundle
-     * @return bytes32 The calculated digest
-     */
-    function _calculateDigest(RecentBlockHashBundle memory bundle)
-        internal
-        view
-        returns (bytes32)
-    {
+    function _domainSeparator() internal view virtual override returns (bytes32) {
         return keccak256(
-            abi.encodePacked(
-                "\x19\x01",
-                _domainSeparator(),
-                keccak256(abi.encode(RECENT_BLOCK_HASH_TYPEHASH, bundle.number, bundle.hash))
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,bytes32 salt)"),
+                keccak256("Farcaster Verify Ethereum Address"),
+                keccak256("2.0.0"),
+                block.chainid,
+                bytes32(0xf2d857f4a3edcb9b78b4d503bfe733db1e3f6cdc2b7971ee739626c97e86a558)
             )
         );
     }
