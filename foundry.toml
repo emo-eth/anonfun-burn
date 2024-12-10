@@ -15,6 +15,19 @@ solady = "0.0.275"
 create2-helpers = "0.3.2"
 "@uniswap-v3-core" = "1.0.2-solc-0.8-simulate"
 
+
+[rpc_endpoints]
+base = "${BASE_RPC_URL}"
+optimism = "${OPTIMISM_RPC_URL}"
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+optimism_sepolia = "${OP_SEPOLIA_RPC_URL}"
+
+[etherscan]
+base = { key = "${BASE_ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
+optimism = { key = "${OPTIMISM_ETHERSCAN_API_KEY}" }
+base_sepolia = { key = "${BASE_ETHERSCAN_API_KEY}" }
+optimism_sepolia = { key = "${OP_SEPOLIA_ETHERSCAN_API_KEY}" }
+
 [fmt]
 line_length = 100
 

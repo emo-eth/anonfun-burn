@@ -17,10 +17,10 @@ contract DeterministicUpgradeableFactory {
                                 STATE
     //////////////////////////////////////////////////////////////*/
 
-    SimpleUpgradeableProxy internal immutable _implementation;
+    SimpleUpgradeableProxy public immutable implementation;
 
     constructor() {
-        _implementation = new SimpleUpgradeableProxy();
+        implementation = new SimpleUpgradeableProxy();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -39,8 +39,7 @@ contract DeterministicUpgradeableFactory {
         // result in different addresses
         address proxy = address(
             new ERC1967Proxy{salt: salt}(
-                address(_implementation),
-                abi.encodeWithSelector(_implementation.initialize.selector, owner)
+                address(implementation), abi.encodeCall(implementation.initialize, owner)
             )
         );
         return proxy;
@@ -81,8 +80,8 @@ contract DeterministicUpgradeableFactory {
             abi.encodePacked(
                 type(ERC1967Proxy).creationCode,
                 abi.encode(
-                    address(_implementation),
-                    abi.encodeWithSelector(_implementation.initialize.selector, owner)
+                    address(implementation),
+                    abi.encodeWithSelector(implementation.initialize.selector, owner)
                 )
             )
         );

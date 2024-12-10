@@ -17,3 +17,5 @@ ref/
 dependencies/
 lcov.info
 html/
+stdjson/
+broadcast/
