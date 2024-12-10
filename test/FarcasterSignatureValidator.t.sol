@@ -46,7 +46,7 @@ contract FarcasterSignatureValidatorTest is Test {
             SimpleUpgradeableProxy(factory.deployDeterministicUUPS(0, address(this)));
         address owner = proxy.owner();
 
-        address _dest = vm.envAddress("VERIFYING_CONTRACT");
+        address _dest = vm.envOr("VERIFYING_CONTRACT", makeAddr("verifying_contract"));
         vm.etch(_dest, address(proxy).code);
         // force write owner to the dest
         if (!initialized) {
