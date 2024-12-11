@@ -14,6 +14,7 @@ import {IUniswapV3Pool} from "uniswap-v3-core/interfaces/IUniswapV3Pool.sol";
 import {IV3SwapRouter} from "src/lib/IV3SwapRouter.sol";
 import {MockLpLockerV2} from "./helpers/MockLpLockerV2.sol";
 import {OwnableUpgradeable} from "openzeppelin-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable} from "openzeppelin-contracts/access/Ownable.sol";
 import {stdStorage, StdStorage} from "forge-std/StdStorage.sol";
 import {Test} from "forge-std/Test.sol";
 import {TickMath} from "uniswap-v3-core/libraries/TickMath.sol";
@@ -25,11 +26,15 @@ contract ContractCaller {
         _rebuyer.claimAndBurn();
     }
 }
+
+contract MockOwnable is Ownable {
+    constructor(address owner) Ownable(owner) {}
+}
+
 /**
  * @title UniV3RebuyerTest
  * @notice Test contract for UniV3Rebuyer functionality
  */
-
 contract UniV3RebuyerTest is Test {
     using stdStorage for StdStorage;
 
@@ -67,6 +72,7 @@ contract UniV3RebuyerTest is Test {
         // Deploy core contracts
         factory = new DeterministicUpgradeableFactory();
         implementation = new UniV3Rebuyer();
+        mockLpLockerV2 = new MockLpLockerV2();
 
         // Deploy and initialize proxy
         SimpleUpgradeableProxy proxy =
@@ -74,7 +80,8 @@ contract UniV3RebuyerTest is Test {
         proxy.upgradeToAndCall(
             address(implementation),
             abi.encodeCall(
-                UniV3Rebuyer.reinitialize, (2, MAX_AMOUNT_PER_TX, MIN_SWAP_DELAY, MAX_DEVIATION_BPS)
+                UniV3Rebuyer.reinitialize,
+                (2, MAX_AMOUNT_PER_TX, MIN_SWAP_DELAY, MAX_DEVIATION_BPS, address(mockLpLockerV2))
             )
         );
         rebuyer = UniV3Rebuyer(payable(address(proxy)));
@@ -93,8 +100,6 @@ contract UniV3RebuyerTest is Test {
         WETH.approve(address(V3_ROUTER), type(uint256).max);
         TARGET.approve(address(V3_ROUTER), type(uint256).max);
         vm.stopPrank();
-
-        mockLpLockerV2 = new MockLpLockerV2();
     }
 
     function testClaimAndBurn_WhenPriceDeviates() public {
@@ -175,18 +180,20 @@ contract UniV3RebuyerTest is Test {
         rebuyer.upgradeToAndCall(
             address(newImplementation),
             abi.encodeCall(
-                UniV3Rebuyer.reinitialize, (3, MAX_AMOUNT_PER_TX, MIN_SWAP_DELAY, MAX_DEVIATION_BPS)
+                UniV3Rebuyer.reinitialize,
+                (3, MAX_AMOUNT_PER_TX, MIN_SWAP_DELAY, MAX_DEVIATION_BPS, makeAddr("newLpLockerV2"))
             )
         );
     }
 
     function testReinitialize() public {
         vm.prank(address(this));
-        rebuyer.reinitialize(3, 2e18, 2 hours, 20);
+        rebuyer.reinitialize(3, 2e18, 2 hours, 20, makeAddr("newLpLockerV2"));
 
         assertEq(rebuyer.getMaxAmountOutPerTx(), 2e18);
         assertEq(rebuyer.getMinSwapDelay(), 2 hours);
         assertEq(rebuyer.getMaxIncreaseBps(), 20);
+        assertEq(rebuyer.getLpLockerV2(), makeAddr("newLpLockerV2"));
     }
 
     function testUpgrade_OnlyOwner() public {
@@ -200,7 +207,8 @@ contract UniV3RebuyerTest is Test {
         rebuyer.upgradeToAndCall(
             address(newImplementation),
             abi.encodeCall(
-                UniV3Rebuyer.reinitialize, (2, MAX_AMOUNT_PER_TX, MIN_SWAP_DELAY, MAX_DEVIATION_BPS)
+                UniV3Rebuyer.reinitialize,
+                (2, MAX_AMOUNT_PER_TX, MIN_SWAP_DELAY, MAX_DEVIATION_BPS, makeAddr("newLpLockerV2"))
             )
         );
     }
@@ -219,11 +227,12 @@ contract UniV3RebuyerTest is Test {
         rebuyer.setMaxIncreaseBps(newDeviation);
         assertEq(rebuyer.getMaxIncreaseBps(), newDeviation);
 
-        rebuyer.setParameters(3e18, 3 hours, 30, true);
+        rebuyer.setParameters(3e18, 3 hours, 30, true, address(mockLpLockerV2));
         assertEq(rebuyer.getMaxAmountOutPerTx(), 3e18);
         assertEq(rebuyer.getMinSwapDelay(), 3 hours);
         assertEq(rebuyer.getMaxIncreaseBps(), 30);
         assertTrue(rebuyer.isPaused());
+        assertEq(rebuyer.getLpLockerV2(), address(mockLpLockerV2));
     }
 
     function testSetters_OnlyOwner() public {
@@ -253,7 +262,7 @@ contract UniV3RebuyerTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, nonOwner)
         );
-        rebuyer.setParameters(3e18, 3 hours, 30, true);
+        rebuyer.setParameters(3e18, 3 hours, 30, true, address(mockLpLockerV2));
 
         vm.stopPrank();
     }
@@ -291,20 +300,20 @@ contract UniV3RebuyerTest is Test {
         vm.expectEmit(true, false, false, false);
         emit MockLpLockerV2.FeesCollected(LP_TOKEN_ID);
 
-        rebuyer.claimFromLpLockerV2(address(mockLpLockerV2), LP_TOKEN_ID);
+        rebuyer.claimFromLpLockerV2(LP_TOKEN_ID);
     }
 
     function testClaimFromLpLockerV2Array() public {
-        UniV3Rebuyer.LpLocker[] memory lockers = new UniV3Rebuyer.LpLocker[](2);
-        lockers[0] = UniV3Rebuyer.LpLocker({locker: address(mockLpLockerV2), tokenId: 1});
-        lockers[1] = UniV3Rebuyer.LpLocker({locker: address(mockLpLockerV2), tokenId: 2});
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = 1;
+        tokenIds[1] = 2;
 
         vm.expectEmit(true, false, false, false);
         emit MockLpLockerV2.FeesCollected(1);
         vm.expectEmit(true, false, false, false);
         emit MockLpLockerV2.FeesCollected(2);
 
-        rebuyer.claimFromLpLockerV2(lockers);
+        rebuyer.claimFromLpLockerV2(tokenIds);
     }
 
     function testClaimFromLpLockerArray() public {
@@ -316,23 +325,6 @@ contract UniV3RebuyerTest is Test {
         rebuyer.claimFromLpLocker(lockers);
 
         assertLt(initialBalance, WETH.balanceOf(address(rebuyer)));
-    }
-
-    function testClaimFromLpLockerV2_ZeroAddress() public {
-        vm.expectRevert();
-        rebuyer.claimFromLpLockerV2(address(0), LP_TOKEN_ID);
-    }
-
-    function testClaimFromLpLockerV2Array_EmptyArray() public {
-        UniV3Rebuyer.LpLocker[] memory emptyLockers = new UniV3Rebuyer.LpLocker[](0);
-        rebuyer.claimFromLpLockerV2(emptyLockers);
-    }
-
-    function testClaimFromLpLockerV2_InvalidLocker() public {
-        address invalidLocker = makeAddr("invalidLocker");
-
-        vm.expectRevert();
-        rebuyer.claimFromLpLockerV2(invalidLocker, LP_TOKEN_ID);
     }
 
     // Helper functions
@@ -412,7 +404,13 @@ contract UniV3RebuyerTest is Test {
         // Deploy proxy pointing to new implementation
         bytes memory initData = abi.encodeCall(
             UniV3Rebuyer.initialize,
-            (address(this), MAX_AMOUNT_PER_TX, MIN_SWAP_DELAY, MAX_DEVIATION_BPS)
+            (
+                address(this),
+                MAX_AMOUNT_PER_TX,
+                MIN_SWAP_DELAY,
+                MAX_DEVIATION_BPS,
+                makeAddr("newLpLockerV2")
+            )
         );
 
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
@@ -423,6 +421,7 @@ contract UniV3RebuyerTest is Test {
         assertEq(newRebuyer.getMaxAmountOutPerTx(), MAX_AMOUNT_PER_TX);
         assertEq(newRebuyer.getMinSwapDelay(), MIN_SWAP_DELAY);
         assertEq(newRebuyer.getMaxIncreaseBps(), MAX_DEVIATION_BPS);
+        assertEq(newRebuyer.getLpLockerV2(), makeAddr("newLpLockerV2"));
     }
 
     function testValidateCallerAndTimestamp_NonEOA() public {
@@ -527,5 +526,136 @@ contract UniV3RebuyerTest is Test {
         );
         vm.prank(address(this), address(this));
         rebuyer.swapAndBurn();
+    }
+
+    function testTransferUnderlyingOwnership() public {
+        // Deploy a mock ownable contract to transfer
+        MockOwnable mockOwnable = new MockOwnable(address(rebuyer));
+        address newOwner = makeAddr("newOwner");
+
+        // Transfer ownership through rebuyer
+        vm.prank(address(this));
+        rebuyer.transferUnderlyingOwnership(address(mockOwnable), newOwner);
+
+        // Verify ownership was transferred
+        assertEq(mockOwnable.owner(), newOwner);
+    }
+
+    function testTransferUnderlyingOwnership_OnlyOwner() public {
+        MockOwnable mockOwnable = new MockOwnable(address(rebuyer));
+        address nonOwner = makeAddr("nonOwner");
+        address newOwner = makeAddr("newOwner");
+
+        // Attempt transfer from non-owner should fail
+        vm.prank(nonOwner);
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, nonOwner)
+        );
+        rebuyer.transferUnderlyingOwnership(address(mockOwnable), newOwner);
+    }
+
+    function testSetLpLockerV2() public {
+        address newLocker = makeAddr("newLocker");
+
+        vm.prank(address(this));
+        rebuyer.setLpLockerV2(newLocker);
+
+        assertEq(rebuyer.getLpLockerV2(), newLocker);
+    }
+
+    function testSetLpLockerV2_OnlyOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+        address newLocker = makeAddr("newLocker");
+
+        vm.prank(nonOwner);
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, nonOwner)
+        );
+        rebuyer.setLpLockerV2(newLocker);
+    }
+
+    function testSetParameters_WithLpLockerV2() public {
+        uint96 newMaxAmount = 2e18;
+        uint40 newDelay = 2 hours;
+        uint16 newDeviation = 20;
+        bool newPaused = true;
+        address newLocker = makeAddr("newLocker");
+
+        rebuyer.setParameters(newMaxAmount, newDelay, newDeviation, newPaused, newLocker);
+
+        assertEq(rebuyer.getMaxAmountOutPerTx(), newMaxAmount);
+        assertEq(rebuyer.getMinSwapDelay(), newDelay);
+        assertEq(rebuyer.getMaxIncreaseBps(), newDeviation);
+        assertTrue(rebuyer.isPaused());
+        assertEq(rebuyer.getLpLockerV2(), newLocker);
+    }
+
+    function testClaimFromLpLockerV2_Single() public {
+        address newLocker = address(mockLpLockerV2);
+        uint256 tokenId = 123;
+
+        vm.prank(address(this));
+        rebuyer.setLpLockerV2(newLocker);
+
+        vm.expectEmit(true, false, false, false);
+        emit MockLpLockerV2.FeesCollected(tokenId);
+
+        rebuyer.claimFromLpLockerV2(tokenId);
+    }
+
+    function testClaimFromLpLockerV2_Array() public {
+        address newLocker = address(mockLpLockerV2);
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = 123;
+        tokenIds[1] = 456;
+
+        vm.prank(address(this));
+        rebuyer.setLpLockerV2(newLocker);
+
+        vm.expectEmit(true, false, false, false);
+        emit MockLpLockerV2.FeesCollected(tokenIds[0]);
+        vm.expectEmit(true, false, false, false);
+        emit MockLpLockerV2.FeesCollected(tokenIds[1]);
+
+        rebuyer.claimFromLpLockerV2(tokenIds);
+    }
+
+    function testClaimFromLpLockerV2_NoLockerSet() public {
+        uint256 tokenId = 123;
+        rebuyer.setLpLockerV2(address(0));
+
+        vm.expectRevert(UniV3Rebuyer.NoLpLockerV2Set.selector);
+        rebuyer.claimFromLpLockerV2(tokenId);
+    }
+
+    function testClaimFromLpLockerV2Array_EmptyArray() public {
+        address newLocker = address(mockLpLockerV2);
+        uint256[] memory tokenIds = new uint256[](0);
+
+        vm.prank(address(this));
+        rebuyer.setLpLockerV2(newLocker);
+
+        rebuyer.claimFromLpLockerV2(tokenIds);
+    }
+
+    function testSetParameters_OnlyOwner() public {
+        address nonOwner = makeAddr("nonOwner");
+
+        vm.prank(nonOwner);
+        vm.expectRevert(
+            abi.encodeWithSelector(OwnableUpgradeable.OwnableUnauthorizedAccount.selector, nonOwner)
+        );
+        rebuyer.setParameters(2e18, 2 hours, 20, true, address(0));
+    }
+
+    function testClaimFromLpLockerV2Array_NoLockerSet() public {
+        uint256[] memory tokenIds = new uint256[](2);
+        tokenIds[0] = 123;
+        tokenIds[1] = 456;
+
+        rebuyer.setLpLockerV2(address(0));
+
+        vm.expectRevert(UniV3Rebuyer.NoLpLockerV2Set.selector);
+        rebuyer.claimFromLpLockerV2(tokenIds);
     }
 }

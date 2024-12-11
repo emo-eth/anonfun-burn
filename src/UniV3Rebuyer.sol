@@ -2,8 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {ECDSA} from "solady/utils/ECDSA.sol";
-import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {IERC1271} from "openzeppelin-contracts/interfaces/IERC1271.sol";
+import {IERC20} from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import {Initializable} from "openzeppelin-upgradeable/proxy/utils/Initializable.sol";
 import {ILpLocker} from "./lib/ILpLocker.sol";
 import {ILpLockerV2} from "./lib/ILpLockerV2.sol";
@@ -56,6 +56,11 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      */
     error SwapTooSoon();
 
+    /**
+     * @notice Thrown when no LP locker V2 address is set
+     */
+    error NoLpLockerV2Set();
+
     /*//////////////////////////////////////////////////////////////
                                CONSTANTS
     //////////////////////////////////////////////////////////////*/
@@ -65,8 +70,7 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
     uint256 public constant LP_TOKEN_ID = 1150923;
     uint24 public constant POOL_FEE = 10000; // 1% in 100th of basis points
     IUniswapV3Pool public constant POOL = IUniswapV3Pool(0xc4eCaf115CBcE3985748c58dccfC4722fEf8247c);
-    // $ANON contract
-    IERC20 public constant TARGET = IERC20(0x0Db510e79909666d6dEc7f5e49370838c16D950f);
+    IERC20 public constant TARGET = IERC20(0x0Db510e79909666d6dEc7f5e49370838c16D950f); // $ANON
     IV3SwapRouter public constant V3_ROUTER =
         IV3SwapRouter(0x2626664c2603336E57B271c5C0b26F421741e481);
     IERC20 public constant WETH = IERC20(0x4200000000000000000000000000000000000006);
@@ -88,6 +92,7 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param lastSwapTimestamp Timestamp of last swap
      * @param maxIncreaseBps Maximum allowed price deviation in basis points
      * @param paused Pause flag
+     * @param lpLockerV2 Address of V2 LP locker contract
      */
     struct UniV3RebuyerStorage {
         uint96 maxAmountOutPerTx;
@@ -95,6 +100,7 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
         uint40 lastSwapTimestamp;
         uint16 maxIncreaseBps;
         bool paused;
+        address lpLockerV2;
     }
 
     /**
@@ -143,20 +149,27 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
 
     /**
      * @notice Claims fees from V2 LP locker
-     * @param locker Address of LP locker contract
      * @param tokenId ID of LP token
      */
-    function claimFromLpLockerV2(address locker, uint256 tokenId) public {
-        ILpLockerV2(payable(locker)).collectFees(tokenId);
+    function claimFromLpLockerV2(uint256 tokenId) public {
+        address locker = getStorage().lpLockerV2;
+        if (locker == address(0)) {
+            revert NoLpLockerV2Set();
+        }
+        _claimFromLpLockerV2(locker, tokenId);
     }
 
     /**
      * @notice Claims fees from multiple V2 LP lockers
-     * @param lockers Array of LP locker information
+     * @param tokenIds Array of LP token IDs
      */
-    function claimFromLpLockerV2(LpLocker[] memory lockers) public {
-        for (uint256 i = 0; i < lockers.length; i++) {
-            claimFromLpLockerV2(lockers[i].locker, lockers[i].tokenId);
+    function claimFromLpLockerV2(uint256[] memory tokenIds) public {
+        address locker = getStorage().lpLockerV2;
+        if (locker == address(0)) {
+            revert NoLpLockerV2Set();
+        }
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            _claimFromLpLockerV2(locker, tokenIds[i]);
         }
     }
 
@@ -167,15 +180,6 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
         UniV3RebuyerStorage memory store = getStorage();
         _validateCallerAndTimestamp(store);
         _swapAndBurn(store);
-    }
-
-    /**
-     * @notice Transfers ownership of an underlying contract
-     * @param newOwner The new owner of the contract
-     * @param ownable The address of the contract to transfer ownership of
-     */
-    function transferUnderlyingOwnership(address newOwner, address ownable) external onlyOwner {
-        Ownable2StepUpgradeable(ownable).transferOwnership(newOwner);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -289,6 +293,15 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
     }
 
     /**
+     * @notice Internal function to claim fees from V2 LP locker
+     * @param locker Address of V2 LP locker contract
+     * @param tokenId ID of LP token
+     */
+    function _claimFromLpLockerV2(address locker, uint256 tokenId) internal {
+        ILpLockerV2(locker).collectFees(tokenId);
+    }
+
+    /**
      * @notice Gets the storage pointer for the contract
      * @return store Storage struct pointer
      */
@@ -339,23 +352,44 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
     }
 
     /**
+     * @notice Sets the V2 LP locker address
+     * @param _lpLockerV2 New V2 LP locker address
+     */
+    function setLpLockerV2(address _lpLockerV2) external onlyOwner {
+        UniV3RebuyerStorage storage store = getStorage();
+        store.lpLockerV2 = _lpLockerV2;
+    }
+
+    /**
      * @notice Bulk setter for all parameters
      * @param _maxAmountOutPerTx New maximum amount per transaction
      * @param _minSwapDelay New minimum delay between swaps
      * @param _maxIncreaseBps New maximum price deviation in basis points
      * @param _paused New paused state
+     * @param _lpLockerV2 New V2 LP locker address
      */
     function setParameters(
         uint96 _maxAmountOutPerTx,
         uint40 _minSwapDelay,
         uint16 _maxIncreaseBps,
-        bool _paused
+        bool _paused,
+        address _lpLockerV2
     ) external onlyOwner {
         UniV3RebuyerStorage storage store = getStorage();
         store.maxAmountOutPerTx = _maxAmountOutPerTx;
         store.minSwapDelay = _minSwapDelay;
         store.maxIncreaseBps = _maxIncreaseBps;
         store.paused = _paused;
+        store.lpLockerV2 = _lpLockerV2;
+    }
+
+    /**
+     * @notice Transfers ownership of an underlying contract
+     * @param ownable The address of the contract to transfer ownership of
+     * @param newOwner The new owner of the contract
+     */
+    function transferUnderlyingOwnership(address ownable, address newOwner) external onlyOwner {
+        Ownable2StepUpgradeable(ownable).transferOwnership(newOwner);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -402,6 +436,14 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
         return getStorage().paused;
     }
 
+    /**
+     * @notice Gets the V2 LP locker address
+     * @return V2 LP locker address
+     */
+    function getLpLockerV2() public view returns (address) {
+        return getStorage().lpLockerV2;
+    }
+
     /*//////////////////////////////////////////////////////////////
                           INITIALIZATION
     //////////////////////////////////////////////////////////////*/
@@ -411,13 +453,15 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param maxAmountOutPerTx Maximum amount allowed per transaction
      * @param minSwapDelay Minimum delay between swaps
      * @param maxIncreaseBps Maximum price deviation allowed in basis points
+     * @param lpLockerV2 V2 LP locker address
      */
     function __UniV3Rebuyer_init(
         uint96 maxAmountOutPerTx,
         uint40 minSwapDelay,
-        uint16 maxIncreaseBps
+        uint16 maxIncreaseBps,
+        address lpLockerV2
     ) internal {
-        __UniV3Rebuyer_init_unchained(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps);
+        __UniV3Rebuyer_init_unchained(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps, lpLockerV2);
     }
 
     /**
@@ -425,16 +469,19 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param maxAmountOutPerTx Maximum amount allowed per transaction
      * @param minSwapDelay Minimum delay between swaps
      * @param maxIncreaseBps Maximum price deviation allowed in basis points
+     * @param lpLockerV2 V2 LP locker address
      */
     function __UniV3Rebuyer_init_unchained(
         uint96 maxAmountOutPerTx,
         uint40 minSwapDelay,
-        uint16 maxIncreaseBps
+        uint16 maxIncreaseBps,
+        address lpLockerV2
     ) internal onlyInitializing {
         UniV3RebuyerStorage storage store = getStorage();
         store.maxAmountOutPerTx = maxAmountOutPerTx;
         store.minSwapDelay = minSwapDelay;
         store.maxIncreaseBps = maxIncreaseBps;
+        store.lpLockerV2 = lpLockerV2;
         WETH.approve(address(V3_ROUTER), type(uint256).max);
     }
 
@@ -444,15 +491,17 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param maxAmountOutPerTx Maximum amount allowed per transaction
      * @param minSwapDelay Minimum delay between swaps
      * @param maxIncreaseBps Maximum price deviation allowed in basis points
+     * @param lpLockerV2 V2 LP locker address
      */
     function initialize(
         address owner,
         uint96 maxAmountOutPerTx,
         uint40 minSwapDelay,
-        uint16 maxIncreaseBps
+        uint16 maxIncreaseBps,
+        address lpLockerV2
     ) public initializer {
         __Ownable_init(owner);
-        __UniV3Rebuyer_init(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps);
+        __UniV3Rebuyer_init(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps, lpLockerV2);
     }
 
     /**
@@ -461,14 +510,16 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param maxAmountOutPerTx Maximum amount allowed per transaction
      * @param minSwapDelay Minimum delay between swaps
      * @param maxIncreaseBps Maximum price deviation allowed in basis points
+     * @param lpLockerV2 V2 LP locker address
      */
     function reinitialize(
         uint64 version,
         uint96 maxAmountOutPerTx,
         uint40 minSwapDelay,
-        uint16 maxIncreaseBps
+        uint16 maxIncreaseBps,
+        address lpLockerV2
     ) public reinitializer(version) {
-        __UniV3Rebuyer_init_unchained(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps);
+        __UniV3Rebuyer_init_unchained(maxAmountOutPerTx, minSwapDelay, maxIncreaseBps, lpLockerV2);
     }
 
     /**
