@@ -65,6 +65,7 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
     uint256 public constant LP_TOKEN_ID = 1150923;
     uint24 public constant POOL_FEE = 10000; // 1% in 100th of basis points
     IUniswapV3Pool public constant POOL = IUniswapV3Pool(0xc4eCaf115CBcE3985748c58dccfC4722fEf8247c);
+    // $ANON contract
     IERC20 public constant TARGET = IERC20(0x0Db510e79909666d6dEc7f5e49370838c16D950f);
     IV3SwapRouter public constant V3_ROUTER =
         IV3SwapRouter(0x2626664c2603336E57B271c5C0b26F421741e481);
@@ -122,18 +123,6 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
     }
 
     /**
-     * @notice Main function to execute token swaps using custom LP locker
-     * @param locker Address of LP locker contract
-     * @param tokenId ID of LP token
-     */
-    function claimAndBurn(address locker, uint256 tokenId) public {
-        UniV3RebuyerStorage memory store = getStorage();
-        _validateCallerAndTimestamp(store);
-        claimFromLpLocker(locker, tokenId);
-        _swapAndBurn(store);
-    }
-
-    /**
      * @notice Claims fees from LP locker
      * @param locker Address of LP locker contract
      * @param tokenId ID of LP token
@@ -178,6 +167,15 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
         UniV3RebuyerStorage memory store = getStorage();
         _validateCallerAndTimestamp(store);
         _swapAndBurn(store);
+    }
+
+    /**
+     * @notice Transfers ownership of an underlying contract
+     * @param newOwner The new owner of the contract
+     * @param ownable The address of the contract to transfer ownership of
+     */
+    function transferUnderlyingOwnership(address newOwner, address ownable) external onlyOwner {
+        Ownable2StepUpgradeable(ownable).transferOwnership(newOwner);
     }
 
     /*//////////////////////////////////////////////////////////////

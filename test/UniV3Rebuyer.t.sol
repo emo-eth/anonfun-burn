@@ -97,14 +97,6 @@ contract UniV3RebuyerTest is Test {
         mockLpLockerV2 = new MockLpLockerV2();
     }
 
-    // Core functionality tests
-    function testClaimAndBurnCustomLocker() public {
-        vm.prank(address(this), address(this));
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
-
-        assertLt(WETH.balanceOf(address(rebuyer)), 10e18);
-    }
-
     function testClaimAndBurn_WhenPriceDeviates() public {
         int24 currentTick = getCurrentTick();
         int24 newTick = currentTick + int24(uint24(MAX_DEVIATION_BPS + 100));
@@ -119,27 +111,27 @@ contract UniV3RebuyerTest is Test {
             )
         );
         vm.prank(address(this), address(this));
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
+        rebuyer.claimAndBurn();
     }
 
     function testClaimAndBurn_TooSoon() public {
         vm.prank(address(this), address(this));
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
+        rebuyer.claimAndBurn();
 
         vm.expectRevert(UniV3Rebuyer.SwapTooSoon.selector);
         vm.prank(address(this), address(this));
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
+        rebuyer.claimAndBurn();
 
         skip(MIN_SWAP_DELAY);
         vm.prank(address(this), address(this));
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
+        rebuyer.claimAndBurn();
     }
 
     function testClaimAndBurn_WhenPaused() public {
         rebuyer.setPaused(true);
         vm.expectRevert(UniV3Rebuyer.Paused.selector);
         vm.prank(address(this), address(this));
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
+        rebuyer.claimAndBurn();
     }
 
     function testClaimAndBurn_SwapsUpToLimit() public {
@@ -170,7 +162,7 @@ contract UniV3RebuyerTest is Test {
 
         vm.prank(address(this), address(this));
         vm.expectRevert(UniV3Rebuyer.NoWethBalance.selector);
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
+        rebuyer.claimAndBurn();
     }
 
     // Admin functionality tests
@@ -271,7 +263,7 @@ contract UniV3RebuyerTest is Test {
         vm.roll(block.number + 100);
 
         vm.prank(address(this), address(this));
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
+        rebuyer.claimAndBurn();
 
         assertLt(WETH.balanceOf(address(rebuyer)), 10e18);
     }
@@ -283,7 +275,7 @@ contract UniV3RebuyerTest is Test {
         newTick = manipulatePoolPrice(newTick);
 
         vm.prank(address(this), address(this));
-        rebuyer.claimAndBurn(address(LP_LOCKER), LP_TOKEN_ID);
+        rebuyer.claimAndBurn();
     }
 
     // Initialization tests
