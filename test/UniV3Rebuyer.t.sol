@@ -298,7 +298,7 @@ contract UniV3RebuyerTest is Test {
     // LP Locker V2 tests
     function testClaimFromLpLockerV2Single() public {
         vm.expectEmit(true, false, false, false);
-        emit MockLpLockerV2.FeesCollected(LP_TOKEN_ID);
+        emit MockLpLockerV2.RewardsCollected(LP_TOKEN_ID);
 
         rebuyer.claimFromLpLockerV2(LP_TOKEN_ID);
     }
@@ -309,9 +309,9 @@ contract UniV3RebuyerTest is Test {
         tokenIds[1] = 2;
 
         vm.expectEmit(true, false, false, false);
-        emit MockLpLockerV2.FeesCollected(1);
+        emit MockLpLockerV2.RewardsCollected(1);
         vm.expectEmit(true, false, false, false);
-        emit MockLpLockerV2.FeesCollected(2);
+        emit MockLpLockerV2.RewardsCollected(2);
 
         rebuyer.claimFromLpLockerV2(tokenIds);
     }
@@ -598,7 +598,7 @@ contract UniV3RebuyerTest is Test {
         rebuyer.setLpLockerV2(newLocker);
 
         vm.expectEmit(true, false, false, false);
-        emit MockLpLockerV2.FeesCollected(tokenId);
+        emit MockLpLockerV2.RewardsCollected(tokenId);
 
         rebuyer.claimFromLpLockerV2(tokenId);
     }
@@ -613,9 +613,9 @@ contract UniV3RebuyerTest is Test {
         rebuyer.setLpLockerV2(newLocker);
 
         vm.expectEmit(true, false, false, false);
-        emit MockLpLockerV2.FeesCollected(tokenIds[0]);
+        emit MockLpLockerV2.RewardsCollected(tokenIds[0]);
         vm.expectEmit(true, false, false, false);
-        emit MockLpLockerV2.FeesCollected(tokenIds[1]);
+        emit MockLpLockerV2.RewardsCollected(tokenIds[1]);
 
         rebuyer.claimFromLpLockerV2(tokenIds);
     }
@@ -657,5 +657,15 @@ contract UniV3RebuyerTest is Test {
 
         vm.expectRevert(UniV3Rebuyer.NoLpLockerV2Set.selector);
         rebuyer.claimFromLpLockerV2(tokenIds);
+    }
+
+    function testUpgrade2() public {
+        vm.createSelectFork(getChain("base").rpcUrl);
+        address verifyingContract = vm.envAddress("VERIFYING_CONTRACT");
+        address impl = address(new UniV3Rebuyer());
+        UniV3Rebuyer buyer = UniV3Rebuyer(payable(verifyingContract));
+        address owner = buyer.owner();
+        vm.prank(owner);
+        buyer.upgradeToAndCall(impl, "");
     }
 }

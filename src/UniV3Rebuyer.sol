@@ -298,7 +298,7 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
      * @param tokenId ID of LP token
      */
     function _claimFromLpLockerV2(address locker, uint256 tokenId) internal {
-        ILpLockerV2(locker).collectFees(tokenId);
+        ILpLockerV2(locker).collectRewards(tokenId);
     }
 
     /**

@@ -111,7 +111,7 @@ contract Deploy is BaseCreate2Script {
     function upgradeBaseProxy(address implementation, address proxy) external {
         uint64 version = 2;
         uint96 maxAmountOutPerTx = 0.1 ether;
-        uint40 minSwapDelay = 60 minutes;
+        uint40 minSwapDelay = 5 minutes;
         uint16 maxIncreaseBps = 100; // 1%
 
         vm.broadcast(deployer);
@@ -119,9 +119,12 @@ contract Deploy is BaseCreate2Script {
             implementation,
             abi.encodeCall(
                 UniV3Rebuyer.reinitialize,
-                (version, maxAmountOutPerTx, minSwapDelay, maxIncreaseBps)
+                (version, maxAmountOutPerTx, minSwapDelay, maxIncreaseBps, address(0))
             )
         );
+        address newOwner = vm.envAddress("MULTISIG");
+        vm.broadcast(deployer);
+        UniV3Rebuyer(payable(proxy)).transferOwnership(newOwner);
 
         // Verify upgrade
         require(
@@ -167,7 +170,7 @@ contract Deploy is BaseCreate2Script {
      * @param proxy Proxy address
      */
     function _upgradeBaseProxy(address proxy) internal {
-        if (block.chainid != 8453000000 && block.chainid != 84532) return;
+        if (block.chainid != 8453 && block.chainid != 84532) return;
 
         console2.log("Upgrading base proxy to UniV3Rebuyer");
         address implementation =
