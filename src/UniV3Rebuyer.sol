@@ -182,6 +182,11 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
         _swapAndBurn(store);
     }
 
+    function burnBalance() external {
+        uint256 balance = TARGET.balanceOf(address(this));
+        TARGET.transfer(address(0xdead), balance);
+    }
+
     /*//////////////////////////////////////////////////////////////
                           INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -219,7 +224,7 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
         uint256 maxSqrtPriceX96 = _validatePrice(store.maxIncreaseBps);
 
         // Execute swap on Uniswap V3
-        uint256 amountOut = V3_ROUTER.exactInputSingle(
+        V3_ROUTER.exactInputSingle(
             IV3SwapRouter.ExactInputSingleParams({
                 tokenIn: address(WETH),
                 tokenOut: address(TARGET),
@@ -234,8 +239,8 @@ contract UniV3Rebuyer is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable
 
         getStorage().lastSwapTimestamp = uint40(block.timestamp);
 
-        // Burn received tokens
-        TARGET.transfer(address(0xdead), amountOut);
+        // Burn entire balance of TARGET
+        TARGET.transfer(address(0xdead), TARGET.balanceOf(address(this)));
     }
 
     /**

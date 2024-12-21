@@ -668,4 +668,58 @@ contract UniV3RebuyerTest is Test {
         vm.prank(owner);
         buyer.upgradeToAndCall(impl, "");
     }
+
+    // Add these test functions after the other tests
+
+    function testBurnBalance() public {
+        // Setup initial state by sending some TARGET tokens to the rebuyer
+        uint256 amount = 1000e18;
+        deal(address(TARGET), address(rebuyer), amount);
+
+        // Verify initial balance
+        assertEq(TARGET.balanceOf(address(rebuyer)), amount);
+        uint256 initialDeadBalance = TARGET.balanceOf(address(0xdead));
+
+        // Call burnBalance
+        rebuyer.burnBalance();
+
+        // Verify all tokens were burned
+        assertEq(TARGET.balanceOf(address(rebuyer)), 0);
+        assertEq(TARGET.balanceOf(address(0xdead)), initialDeadBalance + amount);
+    }
+
+    function testSwapAndBurn_BurnsEntireBalance() public {
+        // Setup initial state
+        deal(address(WETH), address(rebuyer), 10e18);
+        uint256 initialWethBalance = WETH.balanceOf(address(rebuyer));
+        uint256 initialDeadBalance = TARGET.balanceOf(address(0xdead));
+
+        // Execute swap
+        vm.prank(address(this), address(this));
+        rebuyer.swapAndBurn();
+
+        // Verify WETH was spent
+        assertLt(WETH.balanceOf(address(rebuyer)), initialWethBalance);
+
+        // Verify entire TARGET balance was burned
+        assertEq(TARGET.balanceOf(address(rebuyer)), 0);
+        assertGt(TARGET.balanceOf(address(0xdead)), initialDeadBalance);
+    }
+
+    function testClaimAndBurn_BurnsEntireBalance() public {
+        // Setup initial state
+        uint256 initialWethBalance = WETH.balanceOf(address(rebuyer));
+        uint256 initialDeadBalance = TARGET.balanceOf(address(0xdead));
+
+        // Execute claim and burn
+        vm.prank(address(this), address(this));
+        rebuyer.claimAndBurn();
+
+        // Verify WETH was spent
+        assertLt(WETH.balanceOf(address(rebuyer)), initialWethBalance);
+
+        // Verify entire TARGET balance was burned
+        assertEq(TARGET.balanceOf(address(rebuyer)), 0);
+        assertGt(TARGET.balanceOf(address(0xdead)), initialDeadBalance);
+    }
 }
